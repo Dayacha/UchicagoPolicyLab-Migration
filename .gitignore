@@ -1,0 +1,54 @@
+Data/El Salvador- Censo 2024.zip
+
+# ---- OS FILES ----
+.DS_Store
+Thumbs.db
+
+# ---- PYTHON ----
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local environment variables
+.env
+*.env
+
+# ---- JUPYTER ----
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ---- DATA FILES ----
+# (add only if you do NOT want to upload raw data)
+data/*.csv
+data/*.xlsx
+data/*.sav
+data/*.json
+data/raw/
+*.parquet
+
+# ---- LOGS ----
+logs/
+*.log
+
+# ---- CACHE ----
+.cache/
+*.cache
+
+# ---- BUILD / DIST ----
+build/
+dist/
+*.egg-info/
+
+# ---- EDITOR SETTINGS ----
+.vscode/
+.idea/
+
+# ---- MAC / TEMP ----
+*.tmp
+*.swp
