@@ -25,7 +25,7 @@ env/
 
 # ---- DATA FILES ----
 # (add only if you do NOT want to upload raw data)
-data/*.csv
+#data/*.csv
 data/*.xlsx
 data/*.sav
 data/*.json
