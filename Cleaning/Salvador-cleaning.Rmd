@@ -41,47 +41,47 @@ zonas_sv <- tribble(
   5, "La Libertad", "SVLI", 5, "La Libertad Oeste",
   5, "La Libertad", "SVLI", 6, "La Libertad Sur",
 
-  # --- San Salvador (14) ---
-  14, "San Salvador", "SVSS", 1, "San Salvador Centro",
-  14, "San Salvador", "SVSS", 2, "San Salvador Este",
-  14, "San Salvador", "SVSS", 3, "San Salvador Norte",
-  14, "San Salvador", "SVSS", 4, "San Salvador Oeste",
-  14, "San Salvador", "SVSS", 5, "San Salvador Sur",
+  # --- San Salvador (06) ---
+  6, "San Salvador", "SVSS", 1, "San Salvador Centro",
+  6, "San Salvador", "SVSS", 2, "San Salvador Este",
+  6, "San Salvador", "SVSS", 3, "San Salvador Norte",
+  6, "San Salvador", "SVSS", 4, "San Salvador Oeste",
+  6, "San Salvador", "SVSS", 5, "San Salvador Sur",
 
-  # --- Cuscatlán (06) ---
-  6, "Cuscatlán", "SVCU", 1, "Cuscatlán Norte",
-  6, "Cuscatlán", "SVCU", 2, "Cuscatlán Sur",
+  # --- Cuscatlán (07) ---
+  7, "Cuscatlán", "SVCU", 1, "Cuscatlán Norte",
+  7, "Cuscatlán", "SVCU", 2, "Cuscatlán Sur",
 
-  # --- La Paz (07) ---
-  7, "La Paz", "HNLP", 1, "La Paz Centro",
-  7, "La Paz", "HNLP", 2, "La Paz Este",
-  7, "La Paz", "HNLP", 3, "La Paz Oeste",
+  # --- La Paz (08) ---
+  8, "La Paz", "SVPA", 1, "La Paz Centro",
+  8, "La Paz", "SVPA", 2, "La Paz Este",
+  8, "La Paz", "SVPA", 3, "La Paz Oeste",
 
   # --- Cabañas (09) ---
   9, "Cabañas", "SVCA", 1, "Cabañas Este",
   9, "Cabañas", "SVCA", 2, "Cabañas Oeste",
 
-  # --- San Vicente (08) ---
-  8, "San Vicente", "SVSV", 1, "San Vicente Norte",
-  8, "San Vicente", "SVSV", 2, "San Vicente Sur",
+  # --- San Vicente (10) ---
+  10, "San Vicente", "SVSV", 1, "San Vicente Norte",
+  10, "San Vicente", "SVSV", 2, "San Vicente Sur",
 
-  # --- Usulután (10) ---
-  10, "Usulután", "SVUS", 1, "Usulután Este",
-  10, "Usulután", "SVUS", 2, "Usulután Norte",
-  10, "Usulután", "SVUS", 3, "Usulután Oeste",
+  # --- Usulután (11) ---
+  11, "Usulután", "SVUS", 1, "Usulután Este",
+  11, "Usulután", "SVUS", 2, "Usulután Norte",
+  11, "Usulután", "SVUS", 3, "Usulután Oeste",
 
-  # --- San Miguel (11) ---
-  11, "San Miguel", "SVSM", 1, "San Miguel Centro",
-  11, "San Miguel", "SVSM", 2, "San Miguel Norte",
-  11, "San Miguel", "SVSM", 3, "San Miguel Oeste",
+  # --- San Miguel (12) ---
+  12, "San Miguel", "SVSM", 1, "San Miguel Centro",
+  12, "San Miguel", "SVSM", 2, "San Miguel Norte",
+  12, "San Miguel", "SVSM", 3, "San Miguel Oeste",
 
-  # --- Morazán (12) ---
-  12, "Morazán", "SVMO", 1, "Morazán Norte",
-  12, "Morazán", "SVMO", 2, "Morazán Sur",
+  # --- Morazán (13) ---
+  13, "Morazán", "SVMO", 1, "Morazán Norte",
+  13, "Morazán", "SVMO", 2, "Morazán Sur",
 
-  # --- La Unión (13) ---
-  13, "La Unión", "SVUN", 1, "La Unión Norte",
-  13, "La Unión", "SVUN", 2, "La Unión Sur"
+  # --- La Unión (14) ---
+  14, "La Unión", "SVUN", 1, "La Unión Norte",
+  14, "La Unión", "SVUN", 2, "La Unión Sur"
 )
 
 ```
@@ -110,7 +110,8 @@ mun_nombre = municdesc
 ) %>%
 arrange(dep_codigo, mun_codigo)
 
-base_muni
+base_muni <- base_muni %>%
+  filter(dep_codigo > 15) # 15 is used for non departmeny asigned ones
 ```
 
 # Varoables poblaciones
@@ -606,3 +607,4 @@ emigration_summary
 write_csv(emigration_summary,
           "../Data/El Salvador- Censo 2024/Processed/emigration_summary.csv")
 ```
+
