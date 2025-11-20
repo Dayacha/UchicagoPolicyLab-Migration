@@ -341,55 +341,85 @@ encuesta_hogares
 ```
 
 
+
+
 ```{r}
 # ======================================================
 # HOGARES SUMMARY – HONDURAS (EPHPM 2024)
-# Misma estructura que El Salvador, columnas faltantes = NA
 # ======================================================
-
 hogares_summary <- encuesta_hogares %>%
   clean_names() %>%
+  
+  # -----------------------
+  # Identificador único por hogar
+  # -----------------------
   mutate(
-    # Remittances found?
+    hogar_id = paste0(hogar, "_", num_hog),
+
+    # Honduras NO tiene municipios → ponemos 0
+    munic = 0,
+
+    # Departamento correcto
+    depto = depmuestra,
+
+    # Recibe remesas si cualquier campo > 0
     receives_remittances = ifelse(
       oih12_lps > 0 | 
       oih12_us > 0 |
       oih12_lps_esp > 0 | 
-      oih12_us_esp > 0,
+      oih12_us_esp > 0 | 
+      yhrem > 0,
       1, 0
     ),
 
-    # Urban / rural
+    # Área urbana / rural
     urban_rural = case_when(
       ur == 1 ~ "urban",
       ur == 2 ~ "rural",
       TRUE ~ NA_character_
-    ),
+    )
+  ) %>%
 
-    # Dummy muni
-    munic = 0
-  ) %>%
-  group_by(
-    depto = depmuestra,
-    munic
-  ) %>%
+  # -----------------------------------------------
+  # PRIMER PASO: un solo peso por hogar
+  # -----------------------------------------------
+  group_by(hogar_id, depto, munic) %>%
   summarise(
-    total_households = n(),
-
-
-    # Remittances
-    households_receiving_remittances = sum(receives_remittances, na.rm = TRUE),
-    total_remittances_lps = sum(oih12_lps, na.rm = TRUE),
-    total_remittances_usd = sum(oih12_us, na.rm = TRUE),
-
-    pct_households_receiving_remittances =
-      100 * households_receiving_remittances / total_households
-    
-    
+    peso_hogar = first(factor),              # peso único para el hogar
+    receives_remittances = first(receives_remittances),
+    oih12_lps = sum(oih12_lps, na.rm = TRUE),    # sumado a nivel hogar
+    oih12_us  = sum(oih12_us,  na.rm = TRUE),
+    .groups = "drop"
   ) %>%
-  ungroup()
+
+  # -----------------------------------------------
+  # SEGUNDO PASO: agregación por departamento
+  # -----------------------------------------------
+  group_by(depto, munic) %>%
+  summarise(
+    # Hogares expandidos
+    total_households = sum(peso_hogar, na.rm = TRUE),
+
+    # Hogares que reciben remesas (expandidos)
+    households_receiving_remittances =
+      sum(receives_remittances * peso_hogar, na.rm = TRUE),
+
+    # Monto total de remesas, expandido
+    total_remittances_lps =
+      sum(oih12_lps * peso_hogar, na.rm = TRUE),
+
+    total_remittances_usd =
+      sum(oih12_us * peso_hogar, na.rm = TRUE),
+
+    # Porcentaje
+    pct_households_receiving_remittances =
+      100 * households_receiving_remittances / total_households,
+
+    .groups = "drop"
+  )
 
 hogares_summary
+
 ```
 
 ```{r}
@@ -679,3 +709,4 @@ emigration_summary
 write_csv(emigration_summary,
           "../Data/Honduras/Processed/emigration_summary.csv")
 ```
+
