@@ -7,6 +7,8 @@ library(readr)
 library(dplyr)
 library(janitor)
 library(haven)
+library(stringr)
+library(tidyr)
 ```
 
 ```{r}
@@ -244,6 +246,7 @@ encuesta_hogares <- encuesta_hogares %>%
 # EMPLOYMENT STATUS (weighted using FACTOR)
 encuesta_hogares <- encuesta_hogares %>%
   mutate(
+    child_labor = ifelse(ESTRAB <= 2, FACTOR,0),
     employed    = ifelse(CONDACT == 1, FACTOR, 0),
     unemployed  = ifelse(CONDACT == 2, FACTOR, 0),
     labor_force = ifelse(CONDACT %in% c(1,2), FACTOR, 0)
@@ -252,12 +255,7 @@ encuesta_hogares <- encuesta_hogares %>%
 #  NEET (15–24) — Not studying, not employed, not unemployed
 encuesta_hogares <- encuesta_hogares %>%
   mutate(
-    neet = ifelse(
-      youth_age_lfpr == 1 &
-      ED02 != 1 & ED03 != 1 &       # not in school
-      !(CONDACT %in% c(1,2)),       # not employed or unemployed
-      FACTOR, 0
-    )
+    neet = ifelse(ESTRAB == 4, FACTOR,0)
   )
 
 #  VULNERABLE EMPLOYMENT
@@ -278,7 +276,7 @@ agg_employment <- encuesta_hogares %>%
     # -------------------------------
     # CHILD LABOR (7–14)
     # -------------------------------
-    child_employment_count = sum(employed * child_labor_age, na.rm = TRUE),
+    child_employment_count = sum(child_labor * child_labor_age, na.rm = TRUE),
     child_population_7_14  = sum(child_labor_age * FACTOR, na.rm = TRUE),
     child_employment_rate  = 100 * child_employment_count / child_population_7_14,
 
@@ -447,51 +445,67 @@ encuesta_migracion
 hogares_summary <- encuesta_migracion %>%
   clean_names() %>%
 
-  # Peso expansion
-  mutate(peso = factor_exp_e) %>%
-
-  # Filtrar emigrantes últimos 10 años
-  mutate(year_left = as.numeric(emi006)) %>%
-  filter(!is.na(year_left), year_left >= (2024 - 500)) %>%
-
-  #  Emigrante flag (1 fila = 1 emigrante)
+  # Peso a nivel persona
   mutate(
-    emigrant = ifelse(mi001 == 1, 1, 0),
-    emigrant_weighted = emigrant * peso,
-  ) %>%
-
-  # Agrupar por hogar para contar emigrantes por hogar
-  group_by(
+    peso = factor_exp_e,
+    hogar_id = paste0(id, "_", num_hog),
     depto = emi001_depto,
     munic = 0,
-    id,
-    num_hog
+    emigrant = ifelse(mi001 == 1, 1, 0),
+    year_left = as.numeric(emi006)
   ) %>%
+
+  # últimos 10 años (o ventana que quieras)
+  #filter(!is.na(year_left), year_left >= 2024 - 10) %>%
+
+
+  # ===============================================
+  # PASO 1: total de emigrantes (correcto)
+  # ===============================================
+  mutate(
+    emigrants_weighted = emigrant * peso
+  ) %>%
+
+  # ===============================================
+  # PASO 2: contar emigrantes por hogar (sin peso)
+  # ===============================================
+  group_by(hogar_id, depto, munic) %>%
   summarise(
-    num_emigrants = sum(emigrant_weighted, na.rm = TRUE),
+    peso_hogar = first(peso),   # 1 solo peso por hogar
+    emigrants_raw = sum(emigrant, na.rm = TRUE),    # sin peso
+    emigrants_weighted = sum(emigrants_weighted, na.rm = TRUE),  # total emigrantes
     .groups = "drop"
   ) %>%
 
-  # Clasificaciones por hogar
+  # ===============================================
+  # PASO 3: indicadores de hogares migrantes
+  # ===============================================
   mutate(
-    emigrant_household = ifelse(num_emigrants > 0, 1, 0),
-    one_emigrant       = ifelse(num_emigrants >= 1, 1, 0),
-    multiple_emigrants = ifelse(num_emigrants >= 2, 1, 0)
+    emigrant_household = ifelse(emigrants_raw > 0, 1, 0),
+    one_emigrant = ifelse(emigrants_raw >= 1, 1, 0),
+    two_plus_emigrants = ifelse(emigrants_raw >= 2, 1, 0),
+
+    # expandido
+    emigrant_household_w = emigrant_household * peso_hogar,
+    one_emigrant_w = one_emigrant * peso_hogar,
+    two_plus_emigrants_w = two_plus_emigrants * peso_hogar
   ) %>%
 
-  # 6. Resumen a nivel departamental
+  # ===============================================
+  # PASO 4: agregación a nivel departamental
+  # ===============================================
   group_by(depto, munic) %>%
   summarise(
-    
-    households_with_emigrants = sum(emigrant_household, na.rm = TRUE),
-    households_with_1_emigrant = sum(one_emigrant, na.rm = TRUE),
-    households_with_2plus_emigrants = sum(multiple_emigrants, na.rm = TRUE),
+     total_emigrants_household = sum(emigrants_weighted, na.rm = TRUE),  
 
-    total_emigrants_household = sum(num_emigrants, na.rm = TRUE),
+    households_with_emigrants = sum(emigrant_household_w, na.rm = TRUE),
+    households_with_1_emigrant = sum(one_emigrant_w, na.rm = TRUE),
+    households_with_2plus_emigrants = sum(two_plus_emigrants_w, na.rm = TRUE),
     
-  
+
     .groups = "drop"
   )
+
 
 hogares_summary
 
@@ -499,20 +513,48 @@ hogares_summary
 
 ```
 ```{r}
+# Lets take a look into departmet 9 
+
+hogares_raw_9 <- encuesta_migracion %>%
+  clean_names() %>%
+  filter(emi001_depto == 9) %>%
+  mutate(
+    hogar_id = paste0(id, "_", num_hog),
+    emigrant = ifelse(mi001 == 1, 1, 0),
+    factor_exp_e
+  )
+
+hogares_raw_9 %>%
+  count(hogar_id, emigrant,factor_exp_e)
+```
+
+
+```{r}
+# Arreglar tipos antes del join
+base_muni <- base_muni %>%
+  mutate(
+    depto = as.numeric(depto),
+    munic = as.numeric(munic)
+  )
+
+hogares_summary <- hogares_summary %>%
+  mutate(
+    depto = as.numeric(depto),
+    munic = as.numeric(munic)
+  )
+
+# Ahora sí el left_join funciona
 base_muni <- base_muni %>%
   left_join(hogares_summary, by = c("depto", "munic")) %>%
   mutate(
     pct_households_with_emigrants =
       100 * households_with_emigrants / total_households
-  )
-
-base_muni <- base_muni %>% 
+  ) %>%
   select(-ends_with(".y"))
-
-
-
 base_muni
 ```
+
+
 ```{r}
 base_muni <- base_muni %>%
   mutate(
@@ -544,8 +586,6 @@ write_csv(base_muni,
 ## Now lets create the data base for emigrants
 
 ```{r}
-library(dplyr)
-library(janitor)
 
 emigration_clean <- encuesta_migracion %>%
   clean_names() %>%
@@ -617,13 +657,11 @@ emigration_clean
 
 ```
 ```{r}
-library(stringr)
-library(dplyr)
-library(tidyr)
+
 
 emigration_summary <- emigration_clean %>%
-  # Renombramos para evitar el conflicto
-  rename(cause_codes = cause_emigration) %>%
+  # Mantener variable original
+  rename(cause = cause_emigration) %>%
   
   mutate(
     sex = case_when(
@@ -635,43 +673,9 @@ emigration_summary <- emigration_clean %>%
       urban_rural == 1 ~ "urban",
       urban_rural == 2 ~ "rural",
       TRUE ~ NA_character_
-    ),
-
-    # ------------------------------------------------------------
-    # DETECT MULTIPLE LETTER CAUSES (A, B, C, ... P)
-    # ------------------------------------------------------------
-    cause_family_reunification     = ifelse(str_detect(cause_codes, "A"), 1, 0),
-    cause_low_income               = ifelse(str_detect(cause_codes, "B"), 1, 0),
-    cause_unemployment             = ifelse(str_detect(cause_codes, "C"), 1, 0),
-    cause_job_search               = ifelse(str_detect(cause_codes, "D"), 1, 0),
-    cause_lack_education_access    = ifelse(str_detect(cause_codes, "E"), 1, 0),
-    cause_lack_health_access       = ifelse(str_detect(cause_codes, "F"), 1, 0),
-    cause_lack_basic_services      = ifelse(str_detect(cause_codes, "G"), 1, 0),
-    cause_domestic_violence        = ifelse(str_detect(cause_codes, "H"), 1, 0),
-    cause_food_insecurity          = ifelse(str_detect(cause_codes, "I"), 1, 0),
-    cause_crop_loss                = ifelse(str_detect(cause_codes, "J"), 1, 0),
-    cause_marriage_union           = ifelse(str_detect(cause_codes, "K"), 1, 0),
-    cause_community_insecurity     = ifelse(str_detect(cause_codes, "L"), 1, 0),
-    cause_victim_of_violence       = ifelse(str_detect(cause_codes, "M"), 1, 0),
-    cause_threats_extortion        = ifelse(str_detect(cause_codes, "N"), 1, 0),
-    cause_natural_disaster         = ifelse(str_detect(cause_codes, "O"), 1, 0),
-    cause_other                    = ifelse(str_detect(cause_codes, "P"), 1, 0)
+    )
   ) %>%
 
-  # ------------------------------------------------------------
-  #  PIVOT LONG (solo las binarias)
-  # ------------------------------------------------------------
-  pivot_longer(
-    cols = starts_with("cause_") & !contains("cause_codes"),
-    names_to = "cause",
-    values_to = "flag"
-  ) %>%
-  filter(flag == 1) %>%  # solo causas marcadas
-  select(-flag) %>%
-
-  # ------------------------------------------------------------
-  #  SUMARIA PONDERADA
-  # ------------------------------------------------------------
   group_by(
     depto, munic,
     sex,
@@ -684,6 +688,7 @@ emigration_summary <- emigration_clean %>%
     emigrants = sum(factor_exp_e, na.rm = TRUE),
     .groups = "drop"
   )
+
 
 emigration_summary
 
@@ -705,6 +710,67 @@ emigration_summary <- emigration_summary %>%
 emigration_summary
 
 ```
+```{r}
+# Total ponderado desde tu tabla final
+total_from_summary <- emigration_summary %>%
+  summarise(total = sum(emigrants, na.rm = TRUE))
+
+total_from_summary
+```
+```{r}
+unique_causes <- emigration_summary %>%
+  distinct(cause) %>%
+  filter(!is.na(cause)) %>%
+  arrange(cause)
+
+unique_causes
+```
+```{r}
+# Diccionario oficial de causas
+cause_dict <- list(
+  A = "Reunificación familiar",
+  B = "Bajos ingresos",
+  C = "Desempleo",
+  D = "En búsqueda de un nuevo empleo",
+  E = "Falta de acceso a educación",
+  F = "Falta de acceso a servicios de salud",
+  G = "Falta de acceso a servicios básicos",
+  H = "Violencia familiar",
+  I = "Falta de acceso a alimentos",
+  J = "Por pérdida de cosecha",
+  K = "Por matrimonio o unión",
+  L = "Por inseguridad en la comunidad",
+  M = "Es víctima de violencia",
+  N = "Sufre amenazas o extorsión",
+  O = "Desastres naturales",
+  P = "Otro"
+)
+
+# Función para traducir combinaciones como "ABCD"
+translate_cause <- function(code_string) {
+  letters <- strsplit(code_string, "")[[1]]
+  translated <- cause_dict[letters]
+  paste(unlist(translated), collapse = "; ")
+}
+
+# Aplicar al emigration_summary
+emigration_summary <- emigration_summary %>%
+  mutate(
+    cause = sapply(cause, translate_cause) # <-- usa tu columna original de letras
+  )
+
+emigration_summary
+
+```
+
+```{r}
+# Total ponderado desde tu tabla final
+total_from_summary <- emigration_summary %>%
+  summarise(total = sum(emigrants, na.rm = TRUE))
+
+total_from_summary
+```
+
 ```{r}
 write_csv(emigration_summary,
           "../Data/Honduras/Processed/emigration_summary.csv")
