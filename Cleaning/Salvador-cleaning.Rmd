@@ -89,7 +89,7 @@ zonas_sv <- tribble(
 ## 2. Importar base de POBLACIÓN
 ```{r}
 poblacion <- read_csv(
-  "~/Desktop/UchicagoPolicyLab-Migration/Data/El Salvador- Censo 2024/Raw Data /Base de Datos de Población - CPV 2024 SV.csv",
+  "~/Desktop/UchicagoPolicyLab-Migration/Data/El Salvador/Raw Data /Base de Datos de Población - CPV 2024 SV.csv",
   locale = locale(encoding = "UTF-8"),
 ) %>% clean_names()
 ```
@@ -111,7 +111,9 @@ mun_nombre = municdesc
 arrange(dep_codigo, mun_codigo)
 
 base_muni <- base_muni %>%
-  filter(dep_codigo > 15) # 15 is used for non departmeny asigned ones
+  filter(dep_codigo < 15) # 15 is used for non departmeny asigned ones
+
+base_muni
 ```
 
 # Varoables poblaciones
@@ -342,7 +344,7 @@ base_muni
 # Lets get remittances and the places with more emigrants as percentages
 ```{r}
 hogares<- read_csv(
-  "~/Desktop/UchicagoPolicyLab-Migration/Data/El Salvador- Censo 2024/Raw Data /Base de Datos de Hogares - CPV 2024 SV.csv",
+  "~/Desktop/UchicagoPolicyLab-Migration/Data/El Salvador/Raw Data /Base de Datos de Hogares - CPV 2024 SV.csv",
   locale = locale(encoding = "UTF-8"),
 ) %>% clean_names()
 
@@ -443,20 +445,23 @@ base_muni <- base_muni %>%
 base_muni <- base_muni %>% 
   select(-ends_with(".y"))
 
+base_muni <- base_muni %>%
+  filter(as.numeric(depto) <= 14)
+
 base_muni
 ```
 
 
 ```{r}
 write_csv(base_muni,
-          "../Data/El Salvador- Censo 2024/Processed/municipality_summary.csv")
+          "../Data/El Salvador/Processed/municipality_summary.csv")
 ```
 
 ## Now lets create the emigration data base
 
 ```{r}
 emigration<- read_csv(
-  "~/Desktop/UchicagoPolicyLab-Migration/Data/El Salvador- Censo 2024/Raw Data /Base de Datos de Emigración Internacional - CPV 2024 SV.csv",
+  "~/Desktop/UchicagoPolicyLab-Migration/Data/El Salvador/Raw Data /Base de Datos de Emigración Internacional - CPV 2024 SV.csv",
   locale = locale(encoding = "UTF-8"),
 ) %>% clean_names()
 
@@ -605,6 +610,6 @@ emigration_summary
 
 ```{r}
 write_csv(emigration_summary,
-          "../Data/El Salvador- Censo 2024/Processed/emigration_summary.csv")
+          "../Data/El Salvador/Processed/emigration_summary.csv")
 ```
 
