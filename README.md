@@ -1,4 +1,4 @@
-# Migration Indicators — Honduras, El Salvador & Guatema;a
+# Migration Indicators — Honduras, El Salvador & Guatemala
 
 This repository standardizes migration and household indicators for **Honduras**, **El Salvador** and **Guatemala** using nationally representative microdata.  
 All outputs follow a harmonized schema for cross-country analysis.
