@@ -1,34 +1,36 @@
-# Migration Indicators — Honduras, El Salvador & Guatemala
+# UChicago Policy Lab — Migration Hotspots Project
 
-This repository standardizes migration and household indicators for **Honduras**, **El Salvador** and **Guatemala** using nationally representative microdata.  
-All outputs follow a harmonized schema for cross-country analysis.
+This repository contains the full data processing pipeline for the **Northern Triangle Migration Hotspots Analysis**, covering El Salvador, Guatemala, and Honduras.  
+The project includes:
 
----
-
-## 📘 Data Sources
-
-### **Honduras**
-- **Encuesta Permanente de Hogares (EPH) 2024**
-- **Encuesta de Migración y Remesas 2023**
-
-Main indicators:
-- Total emigrants (weighted)
-- Households with emigrants (weighted)
-- Total expanded households
-- Remittances in LPS & USD
-- Migration causes (A–P)
-- Sex, age, and urban/rural breakdowns
+- Country-level cleaning workflows written in **RMarkdown**
+- A fully reproducible **master pipeline** (`run_all.R`)
+- Automated raw-data validation and auto-unzip functionality
+- Harmonized household- and migration-level datasets
+- Export-ready outputs for dashboarding and hotspot visualization
 
 ---
 
-### **El Salvador**
-- **Censo de Población 2024**
-- **EHPM 2024 — Migration Module**
-
-Main indicators:
-- Emigrants in the last 10 years
-- Household-level emigration
-- Education, employment, and violence metrics
-- Demographic + geographic identifiers
-
----
+## 📁 Repository Structure
+UchicagoPolicyLab-Migration/
+│
+├── run_all.R
+├── README.md
+│
+├── Data/
+│ ├── raw/
+│ │ ├── El Salvador/
+│ │ ├── Guatemala/
+│ │ └── Honduras/
+│ │
+│ ├── clean/
+│ └── output/
+│
+├── National_shapefiles/
+│
+└── scripts/
+│ ├── Guatemala-cleaning.rmd
+│ ├── Honduras-cleaning.Rmd
+│ ├── Salvador-cleaning.Rmd
+│ └── combining_datasets.Rmd
+└── 
