@@ -13,14 +13,13 @@ The project includes:
 
 ---
 ## ▶️ How to Run the Project
-
-
 1. **Clone the repository**
    ```sh
    git clone https://github.com/<your-org>/UchicagoPolicyLab-Migration
    
 2. **Run the complete pipeline**
-source("run_all.R")
+    ```sh
+      source("run_all.R")
 
 ## 🔄 Reproducibility Pipeline
 
