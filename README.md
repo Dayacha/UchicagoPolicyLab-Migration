@@ -9,7 +9,18 @@ The project includes:
 - Harmonized household- and migration-level datasets
 - Export-ready outputs for dashboarding and hotspot visualization
 
+  This project intends to visualize migration hotspots via a Tableau Dashboard.
+
 ---
+## ▶️ How to Run the Project
+
+
+1. **Clone the repository**
+   ```sh
+   git clone https://github.com/<your-org>/UchicagoPolicyLab-Migration
+   
+2. **Run the complete pipeline**
+source("run_all.R")
 
 ## 🔄 Reproducibility Pipeline
 
