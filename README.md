@@ -21,6 +21,9 @@ The project includes:
     ```sh
       source("run_all.R")
 
+## Dashboard
+This project intends to visualize migration hotspots via a Tableau Dashboard.
+
 ## 🔄 Reproducibility Pipeline
 
 The script automatically:
@@ -40,6 +43,7 @@ The script automatically:
 
 **Source:** Dirección General de Estadística y Censos (DIGESTYC)  
 **Link:** https://www.digestyc.gob.sv/
+**Granulatity** Municipality data
 
 **Description:**  
 Hogar-level survey including income, employment, education, housing, access to services, poverty, and geo-identifiers (department & municipality).  
@@ -51,6 +55,7 @@ Provides core socioeconomic indicators used to build education and employment me
 
 **Source:** Instituto Nacional de Estadística (INE)  
 **Link:** https://www.ine.gob.gt/
+**Granulatity** Municipality data
 
 **Description:**  
 National employment and income survey covering labor status, NEET rate, vulnerable employment, education levels, income sources, and household characteristics with geo-identifiers.  
@@ -67,12 +72,14 @@ Banco Central de Honduras (BCH) — https://www.bch.hn/
 ---
 
 #### Encuesta de Migración y Remesas 2023  
+**Granulatity** Municipality data
 Household-level migration survey capturing the number of emigrants, remittance flows, motives for migration, and key demographic and labor characteristics.  
 Provides Honduras’ primary indicators on migration dynamics and remittance dependence.
 
 ---
 
 #### Encuesta Permanente de Hogares de Propósitos Múltiples (EPHPM) 2024  
+**Granulatity** Department data
 National employment and household survey covering labor status, educational attainment, income, household conditions, and urban/rural classification.  
 Serves as the core socioeconomic dataset contextualizing Honduras’ migration patterns.
 
