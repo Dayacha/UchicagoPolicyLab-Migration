@@ -32,7 +32,7 @@ data/*.json
 *.zip
 data/raw/
 *.parquet
-*.json
+
 
 
 # ---- LOGS ----
