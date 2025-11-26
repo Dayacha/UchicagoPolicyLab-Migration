@@ -1,0 +1,587 @@
+
+This file aims to clean and aggrupate Guatemala Census data by municipality 
+Download Guatemala census data from: https://censo2018.ine.gob.gt/descarga
+
+```{r}
+library(readr)
+library(dplyr)
+library(janitor)
+library(haven)
+library(stringr)
+library(tidyr)
+```
+```{r}
+people <- read_csv(
+  "../Data/raw/Guatemala/Censo Guatemala 2018/PERSONA - BDP.csv",
+  col_select = c(
+    # Geography
+    DEPARTAMENTO,
+    MUNICIPIO,
+    COD_MUNICIPIO,
+
+    # Demographics
+    PCP6,            # sexo
+    PCP7,            # edad
+
+    # Education
+    PCP18,           # asiste escuela
+    PCP22,           # sabe leer
+    PCP17_A,         # nivel educativo
+    PCP17_B,         # grado educativo
+    ANEDUCA,         # años de estudio
+
+    # Employment (NECESARIO para que unemployed funcione)
+    PEA,             # poblacion econ. activa
+    POCUPA,          # ocupado
+    PDESOC,          # desocupado
+    PEI,             # inactivo
+    PCP31_D,         # categoría ocupacional
+    PCP27            # trabajó semana pasada
+))
+
+```
+```{r}
+zonas_gt <- read_csv("../Data/raw/Guatemala/Censo Guatemala 2018/geo_codes_municipio.csv")
+migration<- read_csv("../Data/raw/Guatemala/Censo Guatemala 2018/MIGRACION_BDP.csv")
+
+home <- read.csv(
+  "../Data/raw/Guatemala/Censo Guatemala 2018/HOGAR_BDP.csv"
+) %>% clean_names()
+```
+
+
+```{r}
+people
+```
+
+```{r}
+# Crear base municipal para Guatemala con columnas dummy para municipio
+# La encuesta de hogares de Guatemala tampoco tiene información por municipio,
+# por lo que asignamos un valor 0 (dummy) para la columna municipal.
+
+base_muni <- people %>%
+  distinct(
+    depto = DEPARTAMENTO,
+    #munic = MUNICIPIO
+  ) %>%
+  arrange(depto)
+
+base_muni
+```
+
+```{r}
+# 1. Crear variables binarias de sexo
+people <- people %>%
+  mutate(
+    sexo_hombre = ifelse(PCP6 == 1, 1, 0),
+    sexo_mujer  = ifelse(PCP6 == 2, 1, 0)
+  )
+
+# 2. Agregados sin peso usando los códigos correctos
+agg_poblacion <- people %>%
+  group_by(
+    depto = DEPARTAMENTO,
+    #munic = MUNICIPIO     
+  ) %>%
+  summarise(
+    poblacion_total   = n(),
+    poblacion_hombres = sum(sexo_hombre, na.rm = TRUE),
+    poblacion_mujeres = sum(sexo_mujer,  na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# 3. Unir al master municipal
+base_muni <- base_muni %>%
+  left_join(
+    agg_poblacion,
+    by = c("depto")
+  )
+
+base_muni
+
+```
+```{r}
+#Vamos a hacer dole check con los resultados del censo 
+sum(base_muni$poblacion_total, na.rm = TRUE)
+```
+
+
+```{r}
+# ==========================================
+#   EDUCATION INDICATORS – GUATEMALA 2018
+# ==========================================
+
+# 1. Crear flags educativos
+people <- people %>%
+  mutate(
+    attends_school = ifelse(PCP18 == 1, 1, 0),
+    not_attending  = ifelse(PCP18 != 1, 1, 0),
+    literate       = ifelse(PCP22 == 1, 1, 0),
+
+    primary_age         = ifelse(PCP7 >= 7  & PCP7 <= 12, 1, 0),
+    lower_secondary_age = ifelse(PCP7 >= 13 & PCP7 <= 15, 1, 0),
+    youth_age           = ifelse(PCP7 >= 15 & PCP7 <= 24, 1, 0),
+    adult_age           = ifelse(PCP7 >= 15, 1, 0),
+
+    # COMPLETION basados en PCP17_A
+    complete_primary = ifelse(PCP17_A >= 3, 1, 0),
+    complete_lower_secondary = ifelse(PCP17_A >= 4, 1, 0)
+  )
+
+# 2. Agregación municipal
+agg_education <- people %>%
+  group_by(
+    depto = DEPARTAMENTO,
+    #munic = MUNICIPIO
+  ) %>%
+  summarise(
+    # Out of school (13-15)
+    adolescents_out_of_school_count = sum(not_attending * lower_secondary_age, na.rm = TRUE),
+    adolescents_population_13_15    = sum(lower_secondary_age, na.rm = TRUE),
+    adolescents_out_of_school_rate  = 100 * adolescents_out_of_school_count / adolescents_population_13_15,
+
+    # Adult literacy (15+)
+    adult_literate_count     = sum(literate * adult_age, na.rm = TRUE),
+    adult_population_15_plus = sum(adult_age, na.rm = TRUE),
+    adult_literacy_rate      = 100 * adult_literate_count / adult_population_15_plus,
+
+    # Youth literacy (15–24)
+    youth_literate_count = sum(literate * youth_age, na.rm = TRUE),
+    youth_population_15_24 = sum(youth_age, na.rm = TRUE),
+    youth_literacy_rate = 100 * youth_literate_count / youth_population_15_24,
+
+    # Primary completion
+    primary_completion_count = sum(complete_primary * primary_age, na.rm = TRUE),
+    primary_school_age_population = sum(primary_age, na.rm = TRUE),
+    primary_completion_rate = 100 * primary_completion_count / primary_school_age_population,
+
+    # Lower secondary completion
+    lower_secondary_completion_count = sum(complete_lower_secondary * lower_secondary_age, na.rm = TRUE),
+    lower_secondary_age_population = sum(lower_secondary_age, na.rm = TRUE),
+    lower_secondary_completion_rate = 
+      100 * lower_secondary_completion_count / lower_secondary_age_population,
+
+    # Net primary enrollment
+    primary_enrolled_count = sum(attends_school * primary_age, na.rm = TRUE),
+    primary_age_population = sum(primary_age, na.rm = TRUE),
+    net_primary_enrollment_rate = 
+      100 * primary_enrolled_count / primary_age_population,
+
+    # Net secondary enrollment
+    secondary_enrolled_count = sum(attends_school * lower_secondary_age, na.rm = TRUE),
+    secondary_age_population = sum(lower_secondary_age, na.rm = TRUE),
+    net_secondary_enrollment_rate =
+      100 * secondary_enrolled_count / secondary_age_population,
+
+    .groups = "drop"
+  )
+
+# 3. Merge con base_muni
+base_muni <- base_muni %>%
+  left_join(agg_education, by = c("depto"))
+
+base_muni
+
+```
+```{r}
+# ====================================================
+#   EMPLOYMENT INDICATORS – GUATEMALA CENSO 2018
+# ====================================================
+
+people <- people %>%
+  mutate(
+    # ---------------------------------
+    # AGE GROUPS (igual a El Salvador)
+    # ---------------------------------
+    child_labor_age   = ifelse(PCP7 >= 7  & PCP7 <= 14, 1, 0),
+    youth_age_lfpr    = ifelse(PCP7 >= 15 & PCP7 <= 24, 1, 0),
+    adult_age_lfpr    = ifelse(PCP7 >= 15, 1, 0),
+
+    # ---------------------------------
+    # EDUCATION FLAG
+    # ---------------------------------
+    studying = ifelse(PCP18 == 1, 1, 0),   # 1 = sí asiste
+
+    # ---------------------------------
+    # EMPLOYMENT STATUS (Guatemala)
+    # ---------------------------------
+    employed   = ifelse(POCUPA == 1, 1, 0),               # Ocupado
+    unemployed = ifelse(PDESOC %in% c(1,2), 1, 0),        # Aspirante / Cesante
+    inactive   = ifelse(PEI == 1, 1, 0),                  # Inactivo
+
+    # Labor force = employed OR unemployed
+    labor_force = ifelse(employed == 1 | unemployed == 1, 1, 0),
+
+    # ---------------------------------
+    # NEET (Not studying, not employed, not unemployed)
+    # ---------------------------------
+    neet = ifelse(
+      PCP7 >= 15 & PCP7 <= 24 &   # youth
+      studying == 0 &             # not studying
+      employed == 0 &             # not working
+      unemployed == 0,            # not seeking work
+      1, 0
+    ),
+
+    # ---------------------------------
+    # VULNERABLE EMPLOYMENT (ILO)
+    # 3 = cuenta propia sin local
+    # 7 = familiar no remunerado
+    # ---------------------------------
+    vulnerable_emp = ifelse(PCP31_D %in% c(3, 7), 1, 0)
+  )
+
+
+people
+```
+```{r}
+summary(people$PDESOC)
+```
+
+
+```{r}
+# ====================================================
+#   AGGREGATION BY MUNICIPALITY
+# ====================================================
+
+agg_employment <- people %>%
+  group_by(
+    depto = DEPARTAMENTO,
+    #munic = MUNICIPIO
+  ) %>%
+  summarise(
+
+    # Children in employment (7–14)
+    child_employment_count  = sum(employed * child_labor_age, na.rm = TRUE),
+    child_population_7_14   = sum(child_labor_age, na.rm = TRUE),
+    child_employment_rate   = 100 * child_employment_count / child_population_7_14,
+
+    # Youth LFPR (15–24)
+    youth_labor_force_count = sum(labor_force * youth_age_lfpr, na.rm = TRUE),
+    youth_population_15_24  = sum(youth_age_lfpr, na.rm = TRUE),
+    youth_lfpr_rate         = 100 * youth_labor_force_count / youth_population_15_24,
+
+    # Adult LFPR (15+)
+    labor_force_count       = sum(labor_force * adult_age_lfpr, na.rm = TRUE),
+    population_15_plus      = sum(adult_age_lfpr, na.rm = TRUE),
+    lfpr_rate               = 100 * labor_force_count / population_15_plus,
+
+    # Youth NEET
+    neet_count              = sum(neet * youth_age_lfpr, na.rm = TRUE),
+    neet_population_15_24   = sum(youth_age_lfpr, na.rm = TRUE),
+    neet_rate               = 100 * neet_count / neet_population_15_24,
+
+    # Unemployment (15+)
+    unemployment_count      = sum(unemployed * adult_age_lfpr, na.rm = TRUE),
+    labor_force_population_15_plus = sum(labor_force * adult_age_lfpr, na.rm = TRUE),
+    unemployment_rate       = 100 * unemployment_count / labor_force_population_15_plus,
+
+    # Youth Unemployment
+    youth_unemployment_count     = sum(unemployed * youth_age_lfpr, na.rm = TRUE),
+    youth_labor_force_population = sum(labor_force * youth_age_lfpr, na.rm = TRUE),
+    youth_unemployment_rate      = 100 * youth_unemployment_count / youth_labor_force_population,
+
+    # Vulnerable Employment
+    vulnerable_employment_count = sum(vulnerable_emp * employed, na.rm = TRUE),
+    employed_population         = sum(employed, na.rm = TRUE),
+    vulnerable_employment_rate  = 100 * vulnerable_employment_count / employed_population,
+
+    .groups = "drop"
+  )
+
+
+
+
+# ====================================================
+#   MERGE WITH base_muni
+# ====================================================
+
+base_muni <- base_muni %>%
+  left_join(agg_employment, by = c("depto"))
+
+
+```
+```{r}
+base_muni
+```
+# Lets get remittances and the places with more emigrants as percentages
+
+```{r}
+
+home
+
+```
+```{r}
+# ================================================
+# HOUSEHOLD MIGRATION & REMITTANCE INDICATORS
+#       GUATEMALA CENSO 2018
+# ================================================
+hogares_summary <- home %>%
+  janitor::clean_names() %>%   # limpia nombres
+
+  mutate(
+    # -------------------------
+    # Emigrant household
+    # -------------------------
+    emigrant_household = ifelse(pei1 == 1, 1, 0),
+
+    # Número total de emigrantes en el hogar
+    num_emigrants = ifelse(is.na(pei2), 0, pei2),
+
+    # Clasificaciones internas
+    one_emigrant = ifelse(num_emigrants == 1, 1, 0),
+    multiple_emigrants = ifelse(num_emigrants >= 2, 1, 0),
+
+    # -------------------------
+    # Remesas (PCH15)
+    # -------------------------
+    receives_remittances = ifelse(pch15 == 1, 1, 0),
+
+    # -------------------------
+    # Área Urbano/Rural
+    # AREA = 1 urban, 2 rural
+    # -------------------------
+    urban_rural = case_when(
+      area == 1 ~ "urban",
+      area == 2 ~ "rural",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+
+  # -----------------------------
+  #   Group by departamento
+  # -----------------------------
+  group_by(
+    depto = departamento
+    # munic = municipio
+  ) %>%
+
+  summarise(
+    # -----------------------------
+    # Basic household counts
+    # -----------------------------
+    total_households = n(),
+
+    # -----------------------------
+    # Urban / Rural distribution
+    # -----------------------------
+    urban_households = sum(urban_rural == "urban", na.rm = TRUE),
+    rural_households = sum(urban_rural == "rural", na.rm = TRUE),
+
+    pct_urban_households = 100 * urban_households / total_households,
+    pct_rural_households = 100 * rural_households / total_households,
+
+    # -----------------------------
+    # Emigrant households
+    # -----------------------------
+    households_with_emigrants = sum(emigrant_household, na.rm = TRUE),
+    households_with_1_emigrant = sum(one_emigrant, na.rm = TRUE),
+    households_with_2plus_emigrants = sum(multiple_emigrants, na.rm = TRUE),
+
+    # Total emigrants from households
+    total_emigrants_household = sum(num_emigrants, na.rm = TRUE),
+
+    # -----------------------------
+    # Remittances
+    # -----------------------------
+    households_receiving_remittances = sum(receives_remittances, na.rm = TRUE),
+
+    # Percentages related to migration and remittances
+    pct_households_with_emigrants =
+      100 * households_with_emigrants / total_households,
+
+    pct_households_receiving_remittances =
+      100 * households_receiving_remittances / total_households,
+
+    .groups = "drop"
+  )
+
+hogares_summary
+
+```
+
+# Lets join the households information into the summary of other variables
+
+```{r}
+base_muni <- base_muni %>%
+  mutate(
+    depto = sprintf("%02d", as.numeric(depto)),
+    #munic = sprintf("%02d", as.numeric(munic))
+  ) %>%
+  left_join(
+    hogares_summary %>% 
+      mutate(
+        depto = sprintf("%02d", as.numeric(depto)),
+        #munic = sprintf("%02d", as.numeric(munic))
+      ),
+    by = c("depto")
+  )
+
+base_muni <- base_muni %>% 
+  select(-ends_with(".y"))
+
+base_muni <- base_muni %>%
+  filter(as.numeric(depto) <= 23)
+
+base_muni
+```
+
+```{r}
+zonas_gt
+```
+```{r}
+zonas_gt_depto <- zonas_gt %>%
+  distinct(depto, depto_name, dept_geo_code)
+
+zonas_gt_depto
+```
+
+```{r}
+base_muni <- base_muni %>%
+  mutate(
+    depto = sprintf("%02d", as.numeric(depto)),
+    #munic = sprintf("%02d", as.numeric(munic))
+  ) %>%
+  left_join(
+    zonas_gt_depto %>%
+      mutate(
+        depto = sprintf("%02d", as.numeric(depto)),
+        #munic = sprintf("%02d", as.numeric(munic))
+      ),
+    by = c("depto")
+  )
+
+base_muni <- base_muni %>% 
+  select(-ends_with(".y"))
+
+base_muni
+```
+
+
+```{r}
+write_csv(base_muni,
+          "../Data/clean/municipality_summary_gt.csv")
+```
+# Now lest create the data base for emigrants detail only
+```{r}
+migration
+
+```
+```{r}
+emigration_clean <- migration %>%
+  clean_names() %>%
+  rename(
+    depto        = departamento,
+    munic        = municipio,
+    vivienda     = num_vivienda,
+    hogar        = num_hogar,
+    emigrant_id  = id_emigracion,
+    sex          = pei3,
+    age_at_emigration  = pei4,
+    year_departure = pei5,
+    urban_rural  = area
+  ) %>% 
+  
+  mutate(
+    # -------------------------------
+    # Guatemala does NOT include cause
+    # Include placeholder for merging
+    # -------------------------------
+    cause = "not_specified",
+    
+    # -------------------------------
+    # Age groups
+    # -------------------------------
+    age_group_emigration = case_when(
+      age_at_emigration >= 0   & age_at_emigration <= 4   ~ "0-4",
+      age_at_emigration >= 5   & age_at_emigration <= 9   ~ "5-9",
+      age_at_emigration >= 10  & age_at_emigration <= 14  ~ "10-14",
+      age_at_emigration >= 15  & age_at_emigration <= 19  ~ "15-19",
+      age_at_emigration >= 20  & age_at_emigration <= 24  ~ "20-24",
+      age_at_emigration >= 25  & age_at_emigration <= 29  ~ "25-29",
+      age_at_emigration >= 30  & age_at_emigration <= 34  ~ "30-34",
+      age_at_emigration >= 35  & age_at_emigration <= 39  ~ "35-39",
+      age_at_emigration >= 40  & age_at_emigration <= 44  ~ "40-44",
+      age_at_emigration >= 45  & age_at_emigration <= 49  ~ "45-49",
+      age_at_emigration >= 50  & age_at_emigration <= 54  ~ "50-54",
+      age_at_emigration >= 55  & age_at_emigration <= 59  ~ "55-59",
+      age_at_emigration >= 60  & age_at_emigration <= 64  ~ "60-64",
+      age_at_emigration >= 65  & age_at_emigration <= 69  ~ "65-69",
+      age_at_emigration >= 70  & age_at_emigration <= 74  ~ "70-74",
+      age_at_emigration >= 75  & age_at_emigration <= 79  ~ "75-79",
+      age_at_emigration >= 80  & age_at_emigration <= 84  ~ "80-84",
+      age_at_emigration >= 85  & age_at_emigration <= 89  ~ "85-89",
+      age_at_emigration >= 90  & age_at_emigration <= 94  ~ "90-94",
+      age_at_emigration >= 95                          ~ "95+",
+      TRUE ~ NA_character_
+    ),
+
+    # -------------------------------
+    # Dummies
+    # -------------------------------
+    male   = ifelse(sex == 1, 1, 0),
+    female = ifelse(sex == 2, 1, 0),
+    urban  = ifelse(urban_rural == 1, 1, 0),
+    rural  = ifelse(urban_rural == 2, 1, 0)
+  )
+
+emigration_clean
+```
+```{r}
+emigration_summary <- emigration_clean %>%
+  mutate(
+    sex = case_when(
+      sex == 1 ~ "male",
+      sex == 2 ~ "female",
+      TRUE ~ NA_character_
+    ),
+    urban_rural = case_when(
+      urban_rural == 1 ~ "urban",
+      urban_rural == 2 ~ "rural",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  group_by(
+    depto,
+    munic,
+    sex,
+    urban_rural,
+    cause,   # <-- HERE ALWAYS "not_specified"
+    year_departure,
+    age_group_emigration
+  ) %>%
+  summarise(
+    emigrants = n(),
+    .groups = "drop"
+  )
+
+
+emigration_summary
+```
+```{r}
+emigration_summary <- emigration_summary %>%
+  mutate(
+    depto = sprintf("%02d", as.numeric(depto)),
+    munic = sprintf("%02d", as.numeric(munic))
+  ) %>%
+  left_join(
+    zonas_gt %>%
+      mutate(
+        depto = sprintf("%02d", as.numeric(depto)),
+        munic = sprintf("%02d", as.numeric(munic))
+      ),
+    by = c("depto", "munic")
+  )
+
+emigration_summary  <- emigration_summary  %>% 
+  select(-ends_with(".y"))
+
+emigration_summary 
+```
+
+```{r}
+write_csv(emigration_summary,
+          "../Data/clean/emigration_summary_gt.csv")
+```
+
+

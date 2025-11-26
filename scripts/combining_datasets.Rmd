@@ -1,0 +1,180 @@
+## This file takes honduras, salvador and guatemala databasess and combine them into one 
+
+```{r}
+library(dplyr)
+library(tidyr)     
+library(readr)
+
+
+```
+
+
+```{r}
+honduras<- read_csv("../Data/clean/municipality_summary_hnd.csv")
+
+salvador <- read_csv("../Data/clean/municipality_summary_slv.csv")
+
+guatemala <- read_csv("../Data/clean/municipality_summary_gt.csv")
+```
+
+```{r}
+honduras <- honduras %>%
+  mutate(
+    Country = "Honduras",
+    ISO3    = "HND",
+    depto = as.character(depto),
+    #munic = as.character(munic)
+  ) %>%
+  filter(!is.na(dept_geo_code))
+
+salvador <- salvador %>%
+  mutate(
+    Country = "El Salvador",
+    ISO3    = "SLV",
+    depto = as.character(depto),
+    #munic = as.character(munic)
+  ) %>%
+  filter(!is.na(dept_geo_code))
+
+guatemala <- guatemala %>%
+  mutate(
+    Country = "Guatemala",
+    ISO3    = "GTM",
+    depto = as.character(depto),
+    #munic = as.character(munic)
+  ) %>%
+  filter(!is.na(dept_geo_code))
+```
+#Columns that exist in Honduras but NOT in El Salvador
+
+```{r}
+setdiff(names(honduras), names(salvador))
+
+```
+#Columns that exist in El Salvador but NOT in Honduras
+```{r}
+setdiff(names(salvador), names(honduras))
+```
+ We combine
+```{r}
+combined_muni <- bind_rows(honduras, salvador)
+common_cols <- intersect(names(honduras), names(salvador))
+
+combined_muni  <- combined_muni  %>% select(all_of(common_cols))
+combined_muni
+```
+ Lets check guatemala
+```{r}
+setdiff(names(guatemala), names(combined_muni))
+
+```
+```{r}
+setdiff(names(combined_muni), names(guatemala))
+```
+
+ We combine
+```{r}
+combined_muni <- bind_rows(combined_muni, guatemala)
+common_cols <- intersect(names(combined_muni), names(guatemala))
+
+combined_muni  <- combined_muni  %>% select(all_of(common_cols))
+combined_muni
+```
+
+```{r}
+write_csv(combined_muni,
+          "../Data/output/department_data.csv")
+```
+
+
+```{r}
+honduras_emigrants<- read_csv("../Data/clean/emigration_summary_hnd.csv")
+salvador_emigrants <- read_csv("../Data/clean/emigration_summary_slv.csv")
+
+guatemala_emigrants <- read_csv("../Data/clean/emigration_summary_gt.csv")
+```
+
+```{r}
+honduras_emigrants <- honduras_emigrants %>%
+  mutate(
+    Country = "Honduras",
+    ISO3    = "HND",
+    depto = as.character(depto),
+    munic = as.character(munic)
+  ) %>%
+  filter(!is.na(dept_geo_code))
+
+salvador_emigrants <- salvador_emigrants %>%
+  mutate(
+    Country = "El Salvador",
+    ISO3    = "SLV",
+    depto = as.character(depto),
+    munic = as.character(munic)
+  ) %>%
+  filter(!is.na(dept_geo_code))
+
+guatemala_emigrants <- guatemala_emigrants %>%
+  mutate(
+    Country = "Guatemala",
+    ISO3    = "GTM",
+    depto = as.character(depto),
+    munic = as.character(munic)
+  ) %>%
+  filter(!is.na(dept_geo_code))
+```
+
+```{r}
+honduras_emigrants
+```
+
+```{r}
+salvador_emigrants
+```
+```{r}
+guatemala_emigrants
+```
+
+
+#Columns that exist in Honduras but NOT in El Salvador
+
+```{r}
+setdiff(names(honduras_emigrants), names(salvador_emigrants))
+
+```
+#Columns that exist in El Salvador but NOT in Honduras
+```{r}
+setdiff(names(salvador_emigrants), names(honduras_emigrants))
+```
+
+```{r}
+combined_muni_em <- bind_rows(honduras_emigrants, salvador_emigrants)
+common_cols_em <- intersect(names(honduras_emigrants), names(salvador_emigrants))
+
+combined_muni_em <- combined_muni_em %>% select(all_of(common_cols_em))
+combined_muni_em
+```
+
+
+Lets add guatemala
+```{r}
+setdiff(names(combined_muni_em), names(guatemala_emigrants))
+
+```
+
+```{r}
+setdiff(names(guatemala_emigrants), names(combined_muni_em))
+```
+
+```{r}
+combined_muni_em <- bind_rows(combined_muni_em, guatemala_emigrants)
+common_cols_em <- intersect(names(combined_muni_em), names(guatemala_emigrants))
+
+combined_muni_em <- combined_muni_em %>% select(all_of(common_cols_em))
+combined_muni_em
+```
+
+
+```{r}
+write_csv(combined_muni_em,
+          "../Data/output/emigration_data.csv")
+```

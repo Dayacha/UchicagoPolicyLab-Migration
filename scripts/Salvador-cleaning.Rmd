@@ -86,12 +86,37 @@ zonas_sv <- tribble(
 
 ```
 
+```{r}
+zonas_sv_depto <- zonas_sv %>%
+  distinct(depto, depto_name, dept_geo_code)
+
+zonas_sv
+```
+
+
 ## 2. Importar base de POBLACIÓN
 ```{r}
 poblacion <- read_csv(
-  "~/Desktop/UchicagoPolicyLab-Migration/Data/El Salvador/Raw Data /Base de Datos de Población - CPV 2024 SV.csv",
+  "../Data/raw/El Salvador/Censo Poblacion & Vivienda 2024/Base de Datos de Población - CPV 2024 SV.csv"
+) 
+
+```
+```{r}
+hogares<- read_csv(
+  "../Data/raw/El Salvador/Censo Poblacion & Vivienda 2024/Base de Datos de Hogares - CPV 2024 SV.csv",
   locale = locale(encoding = "UTF-8"),
 ) %>% clean_names()
+```
+```{r}
+emigration<- read_csv(
+  "../Data/raw/El Salvador/Censo Poblacion & Vivienda 2024/Base de Datos de Emigración Internacional - CPV 2024 SV.csv",
+  locale = locale(encoding = "UTF-8"),
+) %>% clean_names()
+```
+
+```{r}
+poblacion <- clean_names(poblacion)
+poblacion
 ```
 
 ## 3. Revisar primeras filas
@@ -105,8 +130,9 @@ base_muni <- poblacion %>%
 distinct(
 dep_codigo = depto,
 dep_nombre = deptodesc,
-mun_codigo = munic,
-mun_nombre = municdesc
+mun_codigo = 0,
+#mun_codigo = munic,
+#mun_nombre = municdesc
 ) %>%
 arrange(dep_codigo, mun_codigo)
 
@@ -125,10 +151,10 @@ base_muni <- poblacion %>%
   distinct(
     depto,
     deptodesc,
-    munic,
-    municdesc
+    #munic,
+    #municdesc
   ) %>% 
-  arrange(depto, munic)
+  arrange(depto)#, munic)
 
 #Crear columnas binarias para sexo
 poblacion <- poblacion %>%
@@ -139,7 +165,8 @@ poblacion <- poblacion %>%
 
 # Calcular agregados de población por municipio
 agg_poblacion <- poblacion %>%
-  group_by(depto, deptodesc, munic, municdesc) %>%
+  group_by(depto, deptodesc) %>%
+  #group_by(depto, deptodesc, munic, municdesc) %>%
   summarise(
     poblacion_total   = n(),
     poblacion_hombres = sum(sexo_hombre, na.rm = TRUE),
@@ -150,7 +177,8 @@ agg_poblacion <- poblacion %>%
 # Unir al master municipal
 base_muni <- base_muni %>%
   left_join(agg_poblacion,
-            by = c("depto", "deptodesc", "munic", "municdesc"))
+            by = c("depto", "deptodesc"))
+            #by = c("depto", "deptodesc", "munic", "municdesc"))
 
 base_muni
 ```
@@ -183,7 +211,8 @@ poblacion <- poblacion %>%
 
 # Aggregate counts + percentages
 agg_education <- poblacion %>%
-  group_by(depto, deptodesc, munic, municdesc) %>%
+  group_by(depto, deptodesc) %>%
+  #group_by(depto, deptodesc, munic, municdesc) %>%
   summarise(
           # Adolescents Out of School (ages 13–15)
           # -------------------------
@@ -237,9 +266,9 @@ agg_education <- poblacion %>%
 # municipal dataset
 base_muni <- base_muni %>%
   left_join(agg_education,
-            by = c("depto", "deptodesc", "munic", "municdesc"))
+            by = c("depto", "deptodesc"))
 
-head(base_muni, 20)
+base_muni
 ```
 
 
@@ -279,7 +308,7 @@ poblacion <- poblacion %>%
     vulnerable_emp = ifelse(p19_activ_cat_ocup %in% c(4,8,9), 1, 0)
   )
     agg_employment <- poblacion %>%
-      group_by(depto, deptodesc, munic, municdesc) %>%
+      group_by(depto, deptodesc) %>%
       summarise(
           
           # -------------------------------
@@ -336,18 +365,13 @@ poblacion <- poblacion %>%
 # 6. Merge into municipal dataset
 base_muni <- base_muni %>%
   left_join(agg_employment,
-            by = c("depto", "deptodesc", "munic", "municdesc"))
+            by = c("depto", "deptodesc"))
 
 base_muni
 ```
 
 # Lets get remittances and the places with more emigrants as percentages
 ```{r}
-hogares<- read_csv(
-  "~/Desktop/UchicagoPolicyLab-Migration/Data/El Salvador/Raw Data /Base de Datos de Hogares - CPV 2024 SV.csv",
-  locale = locale(encoding = "UTF-8"),
-) %>% clean_names()
-
 hogares
 ```
 ```{r}
@@ -363,18 +387,27 @@ hogares_summary <- hogares %>%
 
     receives_remittances = ifelse(e02_emi_ayuda == 1, 1, 0),
 
+    # Urban / rural classification
     urban_rural = case_when(
       area == 1 ~ "urban",
       area == 2 ~ "rural",
       TRUE ~ NA_character_
     )
   ) %>%
-  group_by(depto, deptodesc, munic, municdesc) %>%
+  group_by(depto, deptodesc) %>%
   summarise(
     # -----------------------------
     # Basic household counts
     # -----------------------------
     total_households = n(),
+
+    # Urban / rural counts
+    urban_households = sum(urban_rural == "urban", na.rm = TRUE),
+    rural_households = sum(urban_rural == "rural", na.rm = TRUE),
+
+    # % urban / rural households
+    pct_urban_households = 100 * urban_households / total_households,
+    pct_rural_households = 100 * rural_households / total_households,
 
     # -----------------------------
     # Emigrant household indicators
@@ -396,12 +429,12 @@ hogares_summary <- hogares %>%
       100 * households_with_emigrants / total_households,
 
     pct_households_receiving_remittances =
-      100 * households_receiving_remittances / total_households,
-
+      100 * households_receiving_remittances / total_households
   ) %>%
   ungroup()
 
 hogares_summary
+
 
 ```
 
@@ -411,15 +444,15 @@ hogares_summary
 base_muni <- base_muni %>%
   mutate(
     depto = sprintf("%02d", as.numeric(depto)),
-    munic = sprintf("%02d", as.numeric(munic))
+    #munic = sprintf("%02d", as.numeric(munic))
   ) %>%
   left_join(
     hogares_summary %>% 
       mutate(
         depto = sprintf("%02d", as.numeric(depto)),
-        munic = sprintf("%02d", as.numeric(munic))
+        #munic = sprintf("%02d", as.numeric(munic))
       ),
-    by = c("depto", "munic")
+    by = c("depto")
   )
 
 base_muni <- base_muni %>% 
@@ -431,15 +464,15 @@ base_muni
 base_muni <- base_muni %>%
   mutate(
     depto = sprintf("%02d", as.numeric(depto)),
-    munic = sprintf("%02d", as.numeric(munic))
+    #munic = sprintf("%02d", as.numeric(munic))
   ) %>%
   left_join(
-    zonas_sv %>%
+    zonas_sv_depto %>%
       mutate(
         depto = sprintf("%02d", as.numeric(depto)),
-        munic = sprintf("%02d", as.numeric(munic))
+        #munic = sprintf("%02d", as.numeric(munic))
       ),
-    by = c("depto", "munic")
+    by = c("depto")
   )
 
 base_muni <- base_muni %>% 
@@ -454,17 +487,12 @@ base_muni
 
 ```{r}
 write_csv(base_muni,
-          "../Data/El Salvador/Processed/municipality_summary.csv")
+          "../Data/clean/municipality_summary_slv.csv")
 ```
 
 ## Now lets create the emigration data base
 
 ```{r}
-emigration<- read_csv(
-  "~/Desktop/UchicagoPolicyLab-Migration/Data/El Salvador/Raw Data /Base de Datos de Emigración Internacional - CPV 2024 SV.csv",
-  locale = locale(encoding = "UTF-8"),
-) %>% clean_names()
-
 emigration
 ```
 ```{r}
@@ -610,6 +638,7 @@ emigration_summary
 
 ```{r}
 write_csv(emigration_summary,
-          "../Data/El Salvador/Processed/emigration_summary.csv")
+          "../Data/clean/emigration_summary_slv.csv")
 ```
+
 

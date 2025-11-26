@@ -36,10 +36,13 @@ zonas_hn <- tribble(
 )
 ```
 
-## Importar base de datos
+## Importar bases de datos
 ```{r}
-encuesta_hogares <- read_sav("~/Desktop/UchicagoPolicyLab-Migration/Data/Honduras/Data de la Encuesta de Hogares 2024_PDVF/Data de la Encuesta de Hogares 2024_PDVF.sav")
-encuesta_hogares
+encuesta_hogares <- read_sav("../Data/raw/Honduras/Data de la Encuesta de Hogares 2024_PDVF/Data de la Encuesta de Hogares 2024_PDVF.sav")
+```
+```{r}
+encuesta_migracion <- read_sav("../Data/raw/Honduras/Encuesta_Migracion_Remesas_2023/Data de Emigrantes.sav")%>%
+  clean_names()
 ```
 
 ```{r}
@@ -385,7 +388,8 @@ hogares_summary <- encuesta_hogares %>%
   summarise(
     peso_hogar = first(factor),              # peso único para el hogar
     receives_remittances = first(receives_remittances),
-    oih12_lps = sum(oih12_lps, na.rm = TRUE),    # sumado a nivel hogar
+    urban_rural = first(urban_rural),
+    oih12_lps = sum(oih12_lps, na.rm = TRUE),
     oih12_us  = sum(oih12_us,  na.rm = TRUE),
     .groups = "drop"
   ) %>%
@@ -398,11 +402,31 @@ hogares_summary <- encuesta_hogares %>%
     # Hogares expandidos
     total_households = sum(peso_hogar, na.rm = TRUE),
 
-    # Hogares que reciben remesas (expandidos)
+    # -----------------------------
+    # Urban / Rural households (expandidos)
+    # -----------------------------
+    urban_households = sum(
+      ifelse(urban_rural == "urban", peso_hogar, 0),
+      na.rm = TRUE
+    ),
+
+    rural_households = sum(
+      ifelse(urban_rural == "rural", peso_hogar, 0),
+      na.rm = TRUE
+    ),
+
+    pct_urban_households =
+      100 * urban_households / total_households,
+
+    pct_rural_households =
+      100 * rural_households / total_households,
+
+    # -----------------------------
+    # Remesas
+    # -----------------------------
     households_receiving_remittances =
       sum(receives_remittances * peso_hogar, na.rm = TRUE),
 
-    # Monto total de remesas, expandido
     total_remittances_lps =
       sum(oih12_lps * peso_hogar, na.rm = TRUE),
 
@@ -430,9 +454,6 @@ base_muni
 # We need to call the Encuesta de MIgracion y remesas para completar nuestras columnas
 
 ```{r}
-encuesta_migracion <- read_sav("~/Desktop/UchicagoPolicyLab-Migration/Data/Honduras/Encuesta de Migraci¢n y Remesas_2023/Data de Emigrantes.sav")%>%
-  clean_names()
-  
 encuesta_migracion
 ```
 
@@ -579,7 +600,7 @@ base_muni
 ```{r}
 
 write_csv(base_muni,
-          "../Data/Honduras/Processed/municipality_summary.csv")
+          "../Data/clean/municipality_summary_hnd.csv")
 
 ```
 
@@ -773,6 +794,6 @@ total_from_summary
 
 ```{r}
 write_csv(emigration_summary,
-          "../Data/Honduras/Processed/emigration_summary.csv")
+          "../Data/clean/emigration_summary_hnd.csv")
 ```
 
